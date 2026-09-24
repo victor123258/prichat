@@ -42,14 +42,10 @@ export function startChatListeners() {
     el.typingIndicator.classList.toggle('opacity-0', !isOtherTyping)
   })
 
-  // Read receipts — the peer's last-seen timestamp
+  // Read receipts — only the peer's last-seen timestamp (ignore stale own-session ids)
   readOff = onValue(ref(db, `${roomPath()}/read`), (snapshot) => {
     const read = snapshot.val() || {}
-    let ts = 0
-    Object.keys(read).forEach(id => {
-      if (id !== state.userId) ts = Math.max(ts, read[id] || 0)
-    })
-    state.peerReadTs = ts
+    state.peerReadTs = state.peerId ? (Math.max(0, read[state.peerId] || 0)) : 0
     refreshTicks()
   })
 
@@ -126,11 +122,18 @@ function onEntryRemoved(key) {
   const idx = state.messages.findIndex(m => m.key === key)
   if (idx >= 0) state.messages.splice(idx, 1)
   const row = el.messagesContainer.querySelector(`.msg-wrap[data-key="${key}"]`)
-  if (row) {
-    row.remove()
-    const btn = el.messagesContainer.querySelector('#load-earlier')
-    if (btn && state.renderStart <= 0) btn.remove()
+  if (row) row.remove()
+
+  if (state.messages.length === 0) {
+    state.renderStart = 0
+    renderWindow(true)
+    return
   }
+  if (state.renderStart > state.messages.length) {
+    state.renderStart = Math.max(0, state.messages.length - state.visibleCount)
+  }
+  const btn = el.messagesContainer.querySelector('#load-earlier')
+  if (btn && state.renderStart <= 0) btn.remove()
 }
 
 function markRead(msg) {
@@ -459,7 +462,12 @@ export function sendMessage() {
   const text = el.chatInput.value.trim()
 
   if (state.selectedFile) {
-    sendFileMessage(state.selectedFile)
+    const file = state.selectedFile
+    state.selectedFile = null
+    el.filePreviewBar.classList.add('hidden')
+    el.fileInput.value = ''
+    el.chatInput.value = ''
+    sendFileMessage(file)
     return
   }
 
@@ -524,10 +532,6 @@ async function sendFileMessage(file) {
       fileSize: (file.size / 1024).toFixed(1) + ' KB',
       timestamp: serverTimestamp()
     })
-
-    state.selectedFile = null
-    el.fileInput.value = ''
-    el.filePreviewBar.classList.add('hidden')
   } catch (err) {
     console.error(err)
     showToast('Upload failed — check Firebase Storage rules', '⚠️')

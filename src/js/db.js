@@ -72,11 +72,13 @@ export function joinChannel(passkey) {
 
     if (peerIds.length > 0) {
       const otherPeer = peers[peerIds[0]]
+      state.peerId = peerIds[0]
       el.peerStatusLabel.innerText = `LINKED WITH ${otherPeer.alias.toUpperCase()} • E2E SYNC`
       el.peerStatusLabel.classList.remove('text-stealth-400')
       el.peerStatusLabel.classList.add('text-emerald-400')
       state.peerOnline = true
     } else {
+      state.peerId = null
       el.peerStatusLabel.innerText = 'WAITING FOR SECOND OPERATOR...'
       el.peerStatusLabel.classList.remove('text-emerald-400')
       el.peerStatusLabel.classList.add('text-stealth-400')

@@ -17,6 +17,7 @@ export const state = {
   pendingOfferSignal: null,
   // presence & read receipts
   peerOnline: false,
+  peerId: null,
   peerReadTs: 0,
   lastMarkedRead: 0,
   // message history window
