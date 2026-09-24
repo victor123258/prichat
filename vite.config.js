@@ -1,7 +1,7 @@
 import { defineConfig } from 'vite'
 
 export default defineConfig({
-  base: '/PriChat/',
+  base: '/prichat/',
   build: {
     outDir: 'dist',
     assetsDir: 'assets',
