@@ -2,7 +2,7 @@
 // History window + load-earlier, edit/delete/reply, read receipts,
 // incoming-message notifications & image lightbox delegation.
 
-import { db, storage } from './db.js'
+import { db, storage, reportDbError } from './db.js'
 import {
   ref, onValue, onChildAdded, onChildChanged, onChildRemoved,
   push, set, update, remove, serverTimestamp
@@ -32,22 +32,22 @@ export function startChatListeners() {
 
   const messagesRef = ref(db, `${roomPath()}/messages`)
 
-  msgOff = onChildAdded(messagesRef, (snap) => scheduleUpsert(snap.key, snap.val()))
-  changedOff = onChildChanged(messagesRef, (snap) => onEntryChanged(snap.key, snap.val()))
-  removedOff = onChildRemoved(messagesRef, (snap) => onEntryRemoved(snap.key))
+  msgOff = onChildAdded(messagesRef, (snap) => scheduleUpsert(snap.key, snap.val()), reportDbError)
+  changedOff = onChildChanged(messagesRef, (snap) => onEntryChanged(snap.key, snap.val()), reportDbError)
+  removedOff = onChildRemoved(messagesRef, (snap) => onEntryRemoved(snap.key), reportDbError)
 
   typingOff = onValue(ref(db, `${roomPath()}/typing`), (snapshot) => {
     const typingObj = snapshot.val() || {}
     const isOtherTyping = Object.keys(typingObj).some(id => id !== state.userId)
     el.typingIndicator.classList.toggle('opacity-0', !isOtherTyping)
-  })
+  }, reportDbError)
 
   // Read receipts — only the peer's last-seen timestamp (ignore stale own-session ids)
   readOff = onValue(ref(db, `${roomPath()}/read`), (snapshot) => {
     const read = snapshot.val() || {}
     state.peerReadTs = state.peerId ? (Math.max(0, read[state.peerId] || 0)) : 0
     refreshTicks()
-  })
+  }, reportDbError)
 
   unsubPresence = on('presence', () => refreshTicks())
 }
@@ -482,7 +482,7 @@ export function sendMessage() {
   }
   if (state.replyTo) payload.reply = { alias: state.replyTo.alias, text: state.replyTo.text, senderId: state.userId }
 
-  push(ref(db, `${roomPath()}/messages`), payload).catch(() => showToast('Failed to send message', '⚠️'))
+  push(ref(db, `${roomPath()}/messages`), payload).catch(reportDbError)
 
   el.chatInput.value = ''
   if (state.replyTo) hideReplyBar()

@@ -7,7 +7,7 @@ import { getDatabase, ref, onValue, onDisconnect, set, remove, serverTimestamp }
 import { getStorage } from 'firebase/storage'
 import { FIREBASE_CONFIG } from './config.js'
 import { state, emit } from './state.js'
-import { el, formatPasskey } from './ui.js'
+import { el, formatPasskey, showToast } from './ui.js'
 
 const app = initializeApp(FIREBASE_CONFIG)
 
@@ -15,6 +15,19 @@ export const db = getDatabase(app)
 export const storage = getStorage(app)
 
 const roomPath = (passkey = state.passkey) => `prichat_rooms/${passkey}`
+
+// Surface Firebase failures in the UI once, instead of failing silently.
+let fbErrorShown = false
+export function reportDbError(err) {
+  console.warn('[PriChat] Firebase error:', err?.code || '', err?.message || err)
+  if (fbErrorShown) return
+  fbErrorShown = true
+  const code = err?.code || ''
+  const msg = code.includes('PERMISSION_DENIED')
+    ? 'Firebase blocked: open Realtime Database rules to public read/write'
+    : 'Firebase error: ' + (err?.message || 'unknown')
+  showToast(msg, '⚠️')
+}
 
 // Monitor Active Passkey Channels on Landing
 export function monitorActiveRooms() {
@@ -49,7 +62,7 @@ export function monitorActiveRooms() {
       })
       el.activeRoomsList.appendChild(div)
     })
-  })
+  }, reportDbError)
 }
 
 let peerOff = null
@@ -62,7 +75,7 @@ export function joinChannel(passkey) {
   set(myPeerRef, {
     alias: state.alias,
     joinedAt: serverTimestamp()
-  })
+  }).catch(reportDbError)
   onDisconnect(myPeerRef).remove()
 
   if (peerOff) peerOff()
@@ -85,7 +98,7 @@ export function joinChannel(passkey) {
       state.peerOnline = false
     }
     emit('presence', { online: state.peerOnline })
-  })
+  }, reportDbError)
 }
 
 // Disconnect & Leave
