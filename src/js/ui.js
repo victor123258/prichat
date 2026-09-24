@@ -42,12 +42,47 @@ export const el = {
   decoyScreen: document.getElementById('decoy-screen'),
   toast: document.getElementById('toast'),
   toastMsg: document.getElementById('toast-msg'),
-  toastIcon: document.getElementById('toast-icon')
+  toastIcon: document.getElementById('toast-icon'),
+  // invite link
+  btnCopyInvite: document.getElementById('btn-copy-invite'),
+  btnSoundNotification: document.getElementById('btn-sound-notification'),
+  // reply compose
+  replyBar: document.getElementById('reply-bar'),
+  replyBarAlias: document.getElementById('reply-bar-alias'),
+  replyBarText: document.getElementById('reply-bar-text'),
+  btnCancelReply: document.getElementById('btn-cancel-reply'),
+  // image lightbox
+  lightbox: document.getElementById('image-lightbox'),
+  lightboxImg: document.getElementById('lightbox-img'),
+  lightboxClose: document.getElementById('lightbox-close')
 }
 
 // Preset operator alias
 el.aliasInput.value = state.alias
 
+// ==================== LIGHTBOX ====================
+el.lightboxClose.addEventListener('click', closeLightbox)
+el.lightbox.addEventListener('click', (e) => {
+  if (e.target === el.lightbox) closeLightbox()
+})
+
+export function openLightbox(src) {
+  el.lightboxImg.src = src
+  el.lightbox.classList.remove('hidden')
+  el.lightbox.classList.add('flex')
+}
+
+export function closeLightbox() {
+  el.lightbox.classList.add('hidden')
+  el.lightbox.classList.remove('flex')
+  el.lightboxImg.src = ''
+}
+
+export function isLightboxOpen() {
+  return !el.lightbox.classList.contains('hidden')
+}
+
+// ==================== PASSKEY INPUTS ====================
 export function setupPinInputs() {
   el.pinInputs.forEach((input, index) => {
     input.addEventListener('input', (e) => {
@@ -81,6 +116,15 @@ export function setupPinInputs() {
   })
 }
 
+export function fillPasskey(key) {
+  const digits = String(key || '').replace(/[^0-9]/g, '').slice(0, 6)
+  if (digits.length !== 6) return
+  for (let i = 0; i < 6; i++) {
+    el.pinInputs[i].value = digits[i]
+  }
+  checkPasskeyComplete()
+}
+
 export function getEnteredPasskey() {
   return el.pinInputs.map(i => i.value).join('')
 }
@@ -101,6 +145,7 @@ export function formatPasskey(key) {
   return key.substring(0, 3) + '-' + key.substring(3, 6)
 }
 
+// ==================== TOASTS & SOUND ====================
 export function showToast(msg, icon = '⚡') {
   el.toastMsg.innerText = msg
   el.toastIcon.innerText = icon
@@ -110,6 +155,44 @@ export function showToast(msg, icon = '⚡') {
   }, 3000)
 }
 
+// Tiny synth "blip" — no audio assets needed
+export function playBlip(freq = 880, dur = 0.06) {
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext
+    const ctx = new Ctx()
+    const osc = ctx.createOscillator()
+    const gain = ctx.createGain()
+    osc.type = 'sine'
+    osc.frequency.value = freq
+    gain.gain.setValueAtTime(0.05, ctx.currentTime)
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur)
+    osc.connect(gain)
+    gain.connect(ctx.destination)
+    osc.start()
+    osc.stop(ctx.currentTime + dur)
+    osc.onended = () => { try { ctx.close() } catch (e) { /* ignore */ } }
+  } catch (e) { /* ignore */ }
+}
+
+// ==================== COPY ====================
+export async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text)
+    return true
+  } catch (e) {
+    const ta = document.createElement('textarea')
+    ta.value = text
+    ta.style.position = 'fixed'
+    ta.style.opacity = '0'
+    document.body.appendChild(ta)
+    ta.select()
+    try { document.execCommand('copy') } catch (e2) { /* ignore */ }
+    ta.remove()
+    return true
+  }
+}
+
+// ==================== ESCAPING ====================
 export function escapeHtml(str) {
   return str
     ? str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')

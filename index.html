@@ -143,13 +143,19 @@
           <div class="flex items-center gap-2">
             <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
             <span id="room-passkey-display" class="font-mono text-xs font-bold tracking-widest text-stealth-100">KEY: 000-000</span>
+            <button id="btn-copy-invite" class="p-1.5 rounded-lg bg-stealth-900 border border-stealth-700 text-stealth-300 hover:text-stealth-100 hover:border-stealth-500 transition-all" title="Copy invite link">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 010 5.656l-4 4a4 4 0 01-5.656-5.656l1.5-1.5M10.172 13.828a4 4 0 015.656 0l1.5 1.5a4 4 0 015.656-5.656l-4-4a4 4 0 00-5.656 5.656l1.5 1.5"/></svg>
+            </button>
           </div>
           <span id="peer-status-label" class="text-[10px] font-mono text-stealth-400 block mt-0.5">WAITING FOR SECOND OPERATOR...</span>
         </div>
       </div>
 
-      <!-- Action Icons: Voice, Video, Panic -->
+      <!-- Action Icons: Bell, Voice, Video, Panic -->
       <div class="flex items-center gap-2">
+        <button id="btn-sound-notification" class="p-2.5 rounded-xl bg-stealth-800 border border-stealth-700 text-stealth-200 hover:bg-stealth-700 transition-all" title="Notifications Enabled">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+        </button>
         <button id="btn-start-audio-call" class="p-2.5 rounded-xl bg-stealth-800 border border-stealth-700 text-stealth-200 hover:bg-stealth-700 transition-all" title="Start Encrypted Voice Call">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
         </button>
@@ -180,6 +186,18 @@
 
     <!-- Input Toolbar & Controls -->
     <div class="p-3 bg-stealth-850 border-t border-stealth-800 flex-shrink-0">
+
+      <!-- Reply Compose Bar -->
+      <div id="reply-bar" class="hidden mb-2 p-2 rounded-xl bg-stealth-900 border border-stealth-700 flex items-center justify-between gap-2">
+        <div class="flex items-center gap-2 min-w-0">
+          <span class="text-stealth-400">↩</span>
+          <div class="min-w-0 text-left">
+            <div id="reply-bar-alias" class="text-[10px] font-mono text-stealth-300 font-semibold truncate">REPLYING TO</div>
+            <div id="reply-bar-text" class="text-xs font-mono text-stealth-400 truncate">original message...</div>
+          </div>
+        </div>
+        <button id="btn-cancel-reply" class="p-1 rounded bg-stealth-800 text-stealth-400 hover:text-red-400">✕</button>
+      </div>
 
       <!-- Emoji Quick Select Ribbon -->
       <div class="flex items-center gap-2 mb-2 overflow-x-auto pb-1 text-sm border-b border-stealth-800/60 scrollbar-none">
@@ -288,6 +306,12 @@
     <div class="text-yellow-500">[  0.412002] daemon: listening on 127.0.0.1:8080 (passive mode)</div>
     <div class="pt-4 text-gray-400">root@stealth-node-01:~# <span class="animate-pulse">_</span></div>
   </div>
+</div>
+
+<!-- 4. Image Lightbox -->
+<div id="image-lightbox" class="fixed inset-0 z-[60] hidden flex-col items-center justify-center bg-black/95 p-4">
+  <button id="lightbox-close" class="absolute top-4 right-4 p-2 rounded-xl bg-stealth-800 border border-stealth-700 text-stealth-200 hover:bg-stealth-700 transition-all" title="Close (ESC)">✕</button>
+  <img id="lightbox-img" class="max-w-full max-h-full object-contain rounded-lg" alt="Preview">
 </div>
 
 <script type="module" src="/src/js/app.js"></script>

@@ -235,6 +235,166 @@ body {
   outline-offset: 2px;
 }
 
+/* ==================== READ RECEIPTS / TICKS ==================== */
+.msg-tick {
+  font-size: 10px;
+  margin-left: 6px;
+  color: #71717a;
+  font-weight: 700;
+}
+.msg-tick.delivered {
+  color: #a1a1aa;
+}
+.msg-tick.read {
+  color: #34d399;
+}
+.edited-tag {
+  font-size: 9px;
+  color: #71717a;
+  margin-left: 6px;
+  font-style: italic;
+}
+.msg-turn {
+  position: relative;
+}
+
+.msg-bubble {
+  position: relative;
+}
+
+/* Inline edit input + buttons */
+.edit-input {
+  min-height: 44px;
+}
+.edit-btn {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #a1a1aa;
+  background: #18181b;
+  border: 1px solid #27272a;
+  border-radius: 10px;
+  padding: 6px 10px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.edit-btn:hover {
+  color: #f4f4f5;
+  border-color: #52525b;
+}
+.edit-btn.save {
+  background: #e4e4e7;
+  color: #060608;
+  border-color: #e4e4e7;
+}
+.edit-btn.save:hover {
+  background: #ffffff;
+}
+
+/* ==================== ROW ACTIONS (reply / edit / delete) ==================== */
+.msg-wrap:hover .msg-actions,
+.msg-wrap:focus-within .msg-actions {
+  opacity: 1;
+}
+.msg-actions {
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  flex-shrink: 0;
+}
+.msg-actions button {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  border-radius: 8px;
+  background: #18181b;
+  border: 1px solid #27272a;
+  color: #a1a1aa;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.msg-actions button:hover {
+  color: #f4f4f5;
+  border-color: #52525b;
+}
+.msg-actions button.danger:hover {
+  color: #f87171;
+  border-color: #7f1d1d;
+}
+@media (hover: none) {
+  .msg-actions {
+    opacity: 1;
+  }
+}
+
+/* ==================== REPLY QUOTE BLOCK ==================== */
+.reply-quote {
+  border-left: 3px solid #52525b;
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: 8px;
+  padding: 6px 10px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+.rq-alias {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  margin-bottom: 2px;
+}
+.rq-text {
+  font-size: 11px;
+  opacity: 0.75;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Reply compose bar in footer */
+#reply-bar {
+  animation: slideIn 0.18s ease;
+}
+@keyframes slideIn {
+  from { transform: translateY(6px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+/* ==================== LOAD EARLIER ==================== */
+.load-earlier {
+  display: block;
+  margin: 12px auto;
+  padding: 8px 18px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: #a1a1aa;
+  background: #18181b;
+  border: 1px solid #27272a;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.load-earlier:hover {
+  color: #f4f4f5;
+  border-color: #52525b;
+}
+
+/* ==================== IMAGE MESSAGE + LIGHTBOX ==================== */
+.msg-image {
+  cursor: zoom-in;
+  transition: transform 0.15s ease;
+}
+.msg-image:hover {
+  transform: scale(1.02);
+}
+#image-lightbox {
+  transition: opacity 0.15s ease;
+}
+
 /* Reduced Motion */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

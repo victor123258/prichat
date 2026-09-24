@@ -5,7 +5,7 @@ import { db } from './db.js'
 import { ref, onValue, onChildAdded, push, set } from 'firebase/database'
 import { RTC_CONFIG } from './config.js'
 import { state } from './state.js'
-import { el, showToast } from './ui.js'
+import { el, showToast, playBlip } from './ui.js'
 
 const roomPath = () => `prichat_rooms/${state.passkey}`
 
@@ -58,7 +58,18 @@ async function handleCallSignal(snapshot) {
       } catch (e) { /* ignore */ }
     }
   } else if (signal.type === 'end') {
+    const modalOpen = !el.incomingCallModal.classList.contains('hidden')
+    const isInCall = state.activeCallType !== null
     endCallLocally()
+    if (modalOpen && !isInCall) {
+      // The peer hung up while we were still viewing the incoming prompt → missed call
+      if (!el.decoyScreen.classList.contains('hidden')) return
+      playBlip(392, 0.1)
+      showToast('Missed call from ' + (state.pendingOfferSignal?.callerAlias || 'peer'), '📞')
+      el.btnSoundNotification.classList.add('ring-2', 'ring-red-500')
+      setTimeout(() => el.btnSoundNotification.classList.remove('ring-2', 'ring-red-500'), 4000)
+      try { navigator.vibrate && navigator.vibrate([200, 100, 200]) } catch (e) { /* ignore */ }
+    }
   }
 }
 

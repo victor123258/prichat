@@ -1,11 +1,16 @@
 // ==================== MESSAGING, FILE & VOICE NOTE ENGINE ====================
+// History window + load-earlier, edit/delete/reply, read receipts,
+// incoming-message notifications & image lightbox delegation.
 
 import { db, storage } from './db.js'
-import { ref, onValue, onChildAdded, push, set, remove, serverTimestamp } from 'firebase/database'
+import {
+  ref, onValue, onChildAdded, onChildChanged, onChildRemoved,
+  push, set, update, remove, serverTimestamp
+} from 'firebase/database'
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage'
 import { MAX_FILE_BYTES } from './config.js'
-import { state } from './state.js'
-import { el, showToast, escapeHtml } from './ui.js'
+import { state, on } from './state.js'
+import { el, showToast, escapeHtml, playBlip, openLightbox } from './ui.js'
 
 const roomPath = () => `prichat_rooms/${state.passkey}`
 
@@ -17,71 +22,231 @@ const WELCOME_HTML = `
     </div>
   </div>`
 
-let msgOff = null
-let typingOff = null
+let msgOff = null, changedOff = null, removedOff = null, typingOff = null, readOff = null
+let unsubPresence = null
+let flushTimer = null
 
 export function startChatListeners() {
   stopChatListeners()
   resetChatUI()
 
-  msgOff = onChildAdded(ref(db, `${roomPath()}/messages`), (snapshot) => {
-    renderMessage(snapshot.val())
-  })
+  const messagesRef = ref(db, `${roomPath()}/messages`)
+
+  msgOff = onChildAdded(messagesRef, (snap) => scheduleUpsert(snap.key, snap.val()))
+  changedOff = onChildChanged(messagesRef, (snap) => onEntryChanged(snap.key, snap.val()))
+  removedOff = onChildRemoved(messagesRef, (snap) => onEntryRemoved(snap.key))
 
   typingOff = onValue(ref(db, `${roomPath()}/typing`), (snapshot) => {
     const typingObj = snapshot.val() || {}
     const isOtherTyping = Object.keys(typingObj).some(id => id !== state.userId)
     el.typingIndicator.classList.toggle('opacity-0', !isOtherTyping)
   })
+
+  // Read receipts — the peer's last-seen timestamp
+  readOff = onValue(ref(db, `${roomPath()}/read`), (snapshot) => {
+    const read = snapshot.val() || {}
+    let ts = 0
+    Object.keys(read).forEach(id => {
+      if (id !== state.userId) ts = Math.max(ts, read[id] || 0)
+    })
+    state.peerReadTs = ts
+    refreshTicks()
+  })
+
+  unsubPresence = on('presence', () => refreshTicks())
 }
 
 export function stopChatListeners() {
+  if (flushTimer) clearTimeout(flushTimer)
+  flushTimer = null
   if (msgOff) msgOff()
+  if (changedOff) changedOff()
+  if (removedOff) removedOff()
   if (typingOff) typingOff()
-  msgOff = null
-  typingOff = null
+  if (readOff) readOff()
+  if (unsubPresence) unsubPresence()
+  msgOff = changedOff = removedOff = typingOff = readOff = null
+  unsubPresence = null
 }
 
 function resetChatUI() {
+  state.messages = []
+  state.renderStart = 0
+  state.visibleCount = 50
+  state.replayDone = false
+  state.peerReadTs = 0
+  state.lastMarkedRead = 0
+  state.replyTo = null
+
   el.messagesContainer.innerHTML = ''
   el.messagesContainer.insertAdjacentHTML('afterbegin', WELCOME_HTML)
   el.typingIndicator.classList.add('opacity-0')
+  hideReplyBar()
 }
 
-// Render Chat Message Bubble
-function renderMessage(msg) {
-  const welcome = document.getElementById('chat-welcome')
-  if (welcome) welcome.remove()
+/* ---------------------- ingesting / replay window ---------------------- */
 
-  const isMine = msg.senderId === state.userId
-  const row = document.createElement('div')
-  row.className = `flex flex-col ${isMine ? 'items-end' : 'items-start'} mb-3`
+function scheduleUpsert(key, msg) {
+  if (!msg || state.messages.some(m => m.key === key)) return
+  state.messages.push({ key, ...msg })
 
-  let contentHtml = ''
+  // Batch the initial history replay into one render pass.
+  clearTimeout(flushTimer)
+  flushTimer = setTimeout(() => {
+    flushTimer = null
+    if (!state.replayDone) {
+      state.replayDone = true
+      markAllRead()
+      renderWindow(true)
+    }
+  }, 150)
 
-  if (msg.type === 'text') {
-    contentHtml = `<div class="text-xs font-mono leading-relaxed break-words">${escapeHtml(msg.text)}</div>`
-  } else if (msg.type === 'image') {
-    contentHtml = `
-      <img src="${escapeHtml(msg.fileUrl)}" alt="Shared image" class="max-w-xs max-h-60 rounded-xl border border-stealth-700 object-cover mb-1 cursor-pointer" onclick="window.open('${escapeHtml(msg.fileUrl)}', '_blank')">
-      <div class="text-[10px] font-mono opacity-60">${escapeHtml(msg.fileName || 'Image')}</div>
+  if (state.replayDone) {
+    appendIfVisible(state.messages[state.messages.length - 1])
+    if (msg.senderId !== state.userId) {
+      notifyIncoming(msg)
+      markRead(msg)
+    }
+  }
+}
+
+function onEntryChanged(key, msg) {
+  const entry = state.messages.find(m => m.key === key)
+  if (!entry) return
+  Object.assign(entry, msg)
+  const row = el.messagesContainer.querySelector(`.msg-wrap[data-key="${key}"]`)
+  if (row) {
+    const replacement = createRow(entry)
+    row.replaceWith(replacement)
+    refreshTicksFor(replacement)
+  }
+}
+
+function onEntryRemoved(key) {
+  const idx = state.messages.findIndex(m => m.key === key)
+  if (idx >= 0) state.messages.splice(idx, 1)
+  const row = el.messagesContainer.querySelector(`.msg-wrap[data-key="${key}"]`)
+  if (row) {
+    row.remove()
+    const btn = el.messagesContainer.querySelector('#load-earlier')
+    if (btn && state.renderStart <= 0) btn.remove()
+  }
+}
+
+function markRead(msg) {
+  const ts = typeof msg.timestamp === 'number' ? msg.timestamp : 0
+  if (ts > (state.lastMarkedRead || 0)) {
+    state.lastMarkedRead = ts
+    set(ref(db, `${roomPath()}/read/${state.userId}`), ts).catch(() => {})
+  }
+}
+
+function markAllRead() {
+  let maxTs = 0
+  state.messages.forEach(m => {
+    if (typeof m.timestamp === 'number') maxTs = Math.max(maxTs, m.timestamp)
+  })
+  if (maxTs > (state.lastMarkedRead || 0)) {
+    state.lastMarkedRead = maxTs
+    set(ref(db, `${roomPath()}/read/${state.userId}`), maxTs).catch(() => {})
+  }
+}
+
+function renderWindow(scrollBottom) {
+  const container = el.messagesContainer
+  const total = state.messages.length
+
+  if (total === 0) {
+    container.innerHTML = WELCOME_HTML
+    return
+  }
+
+  state.renderStart = Math.max(0, total - state.visibleCount)
+
+  const frag = document.createDocumentFragment()
+  if (state.renderStart > 0) {
+    frag.appendChild(buildLoadEarlierBtn())
+  }
+  for (let i = state.renderStart; i < total; i++) {
+    frag.appendChild(createRow(state.messages[i]))
+  }
+  container.replaceChildren(frag)
+
+  if (scrollBottom) container.scrollTop = container.scrollHeight
+  refreshTicks()
+}
+
+function appendIfVisible(entry) {
+  const container = el.messagesContainer
+  const idx = state.messages.indexOf(entry)
+  if (idx < state.renderStart) return
+
+  const nearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 80
+  const row = createRow(entry)
+  container.appendChild(row)
+
+  // Keep the rendered window capped.
+  while (container.querySelectorAll('.msg-wrap').length > state.visibleCount) {
+    const first = container.querySelector('.msg-wrap')
+    if (!first) break
+    first.remove()
+    state.renderStart++
+  }
+
+  if (nearBottom || entry.senderId === state.userId) {
+    container.scrollTop = container.scrollHeight
+  }
+  refreshTicksFor(row)
+}
+
+function loadEarlier() {
+  if (state.renderStart <= 0) return
+  const container = el.messagesContainer
+  const prevHeight = container.scrollHeight
+  const prevTop = container.scrollTop
+  state.visibleCount += 50
+  renderWindow(false)
+  container.scrollTop = prevTop + (container.scrollHeight - prevHeight)
+}
+
+function buildLoadEarlierBtn() {
+  const btn = document.createElement('button')
+  btn.id = 'load-earlier'
+  btn.className = 'load-earlier'
+  btn.dataset.action = 'load-earlier'
+  btn.textContent = 'LOAD EARLIER MESSAGES'
+  return btn
+}
+
+/* ---------------------- row rendering ---------------------- */
+
+function contentFor(m) {
+  if (m.type === 'text') {
+    return `<div class="text-xs font-mono leading-relaxed break-words">${escapeHtml(m.text)}</div>`
+  }
+  if (m.type === 'image') {
+    return `
+      <img class="msg-image max-w-[240px] max-h-60 rounded-xl border border-stealth-700 object-cover cursor-zoom-in" data-full="${escapeHtml(m.fileUrl)}" src="${escapeHtml(m.fileUrl)}" alt="Shared image">
+      <div class="text-[10px] font-mono opacity-60 mt-1">${escapeHtml(m.fileName || 'Image')}</div>
     `
-  } else if (msg.type === 'file') {
-    contentHtml = `
+  }
+  if (m.type === 'file') {
+    return `
       <div class="flex items-center gap-3 p-2 rounded-xl bg-stealth-900 border border-stealth-700 min-w-[200px]">
         <span class="text-xl">📁</span>
         <div class="flex-1 min-w-0 text-left">
-          <div class="text-xs font-mono font-semibold text-stealth-200 truncate">${escapeHtml(msg.fileName)}</div>
-          <div class="text-[10px] font-mono text-stealth-400">${escapeHtml(msg.fileSize)}</div>
+          <div class="text-xs font-mono font-semibold text-stealth-200 truncate">${escapeHtml(m.fileName)}</div>
+          <div class="text-[10px] font-mono text-stealth-400">${escapeHtml(m.fileSize)}</div>
         </div>
-        <a href="${escapeHtml(msg.fileUrl)}" download="${escapeHtml(msg.fileName)}" target="_blank" rel="noopener" class="p-2 rounded-lg bg-stealth-800 text-stealth-200 hover:text-white">⬇️</a>
+        <a href="${escapeHtml(m.fileUrl)}" download="${escapeHtml(m.fileName)}" target="_blank" rel="noopener" class="p-2 rounded-lg bg-stealth-800 text-stealth-200 hover:text-white">⬇️</a>
       </div>
     `
-  } else if (msg.type === 'voice') {
-    contentHtml = `
+  }
+  if (m.type === 'voice') {
+    return `
       <div class="flex items-center gap-3 p-2 rounded-xl bg-stealth-900 border border-stealth-700 min-w-[180px]">
         <button onclick="this.nextElementSibling.play()" class="p-2.5 rounded-full bg-stealth-200 text-stealth-950 font-bold">▶</button>
-        <audio src="${escapeHtml(msg.audioUrl)}" class="hidden"></audio>
+        <audio src="${escapeHtml(m.audioUrl)}" class="hidden"></audio>
         <div class="flex-1">
           <div class="h-4 bg-stealth-800 rounded flex items-center gap-0.5 px-1">
             <span class="w-1 h-2 bg-stealth-400 rounded-full animate-pulse"></span>
@@ -90,30 +255,209 @@ function renderMessage(msg) {
             <span class="w-1 h-4 bg-stealth-400 rounded-full"></span>
             <span class="w-1 h-2 bg-stealth-400 rounded-full"></span>
           </div>
-          <div class="text-[9px] font-mono text-stealth-400 mt-1">VOICE NOTE • ${escapeHtml(msg.duration || '0:03')}</div>
+          <div class="text-[9px] font-mono text-stealth-400 mt-1">VOICE NOTE • ${escapeHtml(m.duration || '0:03')}</div>
         </div>
       </div>
     `
   }
-
-  const timeStr = new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-
-  row.innerHTML = `
-    <div class="text-[9px] font-mono text-stealth-500 mb-0.5 px-1">${escapeHtml(msg.senderAlias)} • ${timeStr}</div>
-    <div class="max-w-[82%] p-3 rounded-2xl ${isMine ? 'bg-stealth-200 text-stealth-950 rounded-br-none' : 'bg-stealth-850 text-stealth-100 border border-stealth-800 rounded-bl-none'} shadow-md">
-      ${contentHtml}
-    </div>
-  `
-
-  el.messagesContainer.appendChild(row)
-  el.messagesContainer.scrollTop = el.messagesContainer.scrollHeight
+  return '<div class="text-xs font-mono italic opacity-60">Message deleted</div>'
 }
 
-// Send Text Message
+function createRow(m) {
+  const isMine = m.senderId === state.userId
+  const isEdited = m.type === 'text' && m.edited
+
+  const wrap = document.createElement('div')
+  wrap.className = `msg-wrap flex items-end gap-1.5 mb-3 ${isMine ? 'justify-end' : ''}`
+  wrap.dataset.key = m.key
+  wrap.dataset.mine = isMine ? '1' : '0'
+  wrap.dataset.ts = String(typeof m.timestamp === 'number' ? m.timestamp : '')
+
+  const col = document.createElement('div')
+  col.className = `flex flex-col ${isMine ? 'items-end' : 'items-start'} max-w-[85%]`
+
+  const timeStr = m.timestamp
+    ? new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    : '···'
+
+  const meta = document.createElement('div')
+  meta.className = 'text-[9px] font-mono text-stealth-500 mb-0.5 px-1'
+  meta.innerHTML = `${escapeHtml(m.senderAlias || '')} • ${timeStr}` +
+    (isMine ? '<span class="msg-tick" data-tick></span>' : '') +
+    (isEdited ? '<span class="edited-tag">edited</span>' : '')
+
+  let bubbleClass = 'msg-bubble p-3 rounded-2xl text-stone-50'
+  if (m.type === 'deleted') {
+    bubbleClass = 'msg-bubble p-3 rounded-2xl bg-stealth-850 border border-stealth-800 italic opacity-60 text-xs font-mono'
+  } else if (isMine) {
+    bubbleClass = 'msg-bubble p-3 rounded-2xl bg-stealth-200 text-stealth-950 rounded-br-none shadow-md'
+  } else {
+    bubbleClass = 'msg-bubble p-3 rounded-2xl bg-stealth-850 text-stealth-100 border border-stealth-800 rounded-bl-none shadow-md'
+  }
+
+  const bubble = document.createElement('div')
+  bubble.className = bubbleClass
+  bubble.dataset.role = 'bubble'
+
+  let contentHtml = ''
+  if (m.reply) {
+    contentHtml += `
+      <div class="reply-quote">
+        <div class="rq-alias">${escapeHtml(m.reply.alias)}</div>
+        <div class="rq-text">${escapeHtml(m.reply.text)}</div>
+      </div>`
+  }
+  contentHtml += contentFor(m)
+  bubble.innerHTML = contentHtml
+
+  col.appendChild(meta)
+  col.appendChild(bubble)
+
+  const actions = document.createElement('div')
+  actions.className = 'msg-actions flex flex-col gap-1 pb-4'
+  actions.innerHTML = `
+    <button data-action="reply" title="Reply">↩</button>
+    ${isMine && m.type === 'text' ? '<button data-action="edit" title="Edit">✎</button>' : ''}
+    ${isMine ? '<button class="danger" data-action="delete" title="Delete for both">✕</button>' : ''}
+  `
+
+  wrap.appendChild(col)
+  wrap.appendChild(actions)
+  return wrap
+}
+
+function refreshTicksFor(row) {
+  if (!row || row.dataset.mine !== '1') return
+  const tick = row.querySelector('[data-tick]')
+  const ts = Number(row.dataset.ts || 0)
+  if (!tick) return
+  if (state.peerReadTs >= ts && ts > 0) {
+    tick.textContent = '✓✓'
+    tick.className = 'msg-tick read'
+  } else if (state.peerOnline) {
+    tick.textContent = '✓✓'
+    tick.className = 'msg-tick delivered'
+  } else {
+    tick.textContent = '✓'
+    tick.className = 'msg-tick'
+  }
+}
+
+function refreshTicks() {
+  el.messagesContainer.querySelectorAll('.msg-wrap[data-mine="1"]').forEach(refreshTicksFor)
+}
+
+/* ---------------------- delegation: lightbox, load-earlier, actions ---------------------- */
+
+el.messagesContainer.addEventListener('click', onContainerClick)
+el.messagesContainer.addEventListener('scroll', () => {
+  if (el.messagesContainer.scrollTop < 24 && state.renderStart > 0) loadEarlier()
+})
+
+function onContainerClick(e) {
+  // Image → lightbox
+  const img = e.target.closest('.msg-image')
+  if (img) {
+    openLightbox(img.dataset.full || img.src)
+    return
+  }
+
+  // Load-earlier
+  if (e.target.closest('[data-action="load-earlier"]')) {
+    loadEarlier()
+    return
+  }
+
+  // Inline-edit buttons
+  const editBtn = e.target.closest('[data-edit]')
+  if (editBtn) {
+    handleInlineEdit(e, editBtn.dataset.edit)
+    return
+  }
+
+  // Row actions
+  const btn = e.target.closest('[data-action]')
+  if (!btn) return
+  const wrap = btn.closest('.msg-wrap')
+  if (!wrap) return
+  const m = state.messages.find(x => x.key === wrap.dataset.key)
+  if (!m) return
+
+  const action = btn.dataset.action
+  if (action === 'reply') {
+    const preview = m.type === 'text' ? m.text
+      : m.type === 'voice' ? 'Voice note'
+      : m.fileName || 'File'
+    state.replyTo = { key: m.key, alias: m.senderAlias, text: preview }
+    renderReplyBar()
+  } else if (action === 'edit') {
+    startInlineEdit(wrap, m)
+  } else if (action === 'delete') {
+    if (confirm('Delete this message for both operators?')) {
+      remove(ref(db, `${roomPath()}/messages/${m.key}`)).catch(() => showToast('Delete failed', '⚠️'))
+    }
+  }
+}
+
+/* ---------------------- inline edit ---------------------- */
+
+function startInlineEdit(wrap, m) {
+  const bubble = wrap.querySelector('[data-role="bubble"]')
+  const current = m.text || ''
+  bubble.innerHTML = `
+    <textarea class="edit-input w-full bg-stealth-900 border border-stealth-700 rounded-xl px-2 py-1.5 text-xs font-mono text-stealth-100 resize-none" rows="2">${escapeHtml(current)}</textarea>
+    <div class="flex gap-2 mt-1.5 justify-end">
+      <button data-edit="cancel" class="edit-btn">CANCEL</button>
+      <button data-edit="save" class="edit-btn save">SAVE</button>
+    </div>`
+  const ta = bubble.querySelector('textarea')
+  ta.focus()
+  ta.setSelectionRange(ta.value.length, ta.value.length)
+}
+
+function handleInlineEdit(e, mode) {
+  const btn = e.target.closest('[data-edit]')
+  const wrap = btn.closest('.msg-wrap')
+  const bubble = wrap.querySelector('[data-role="bubble"]')
+  const m = state.messages.find(x => x.key === wrap.dataset.key)
+  if (!m) return
+
+  if (mode === 'save') {
+    const text = bubble.querySelector('textarea').value.trim()
+    if (text && text !== m.text) {
+      update(ref(db, `${roomPath()}/messages/${m.key}`), { text, edited: true })
+        .catch(() => showToast('Edit failed', '⚠️'))
+    }
+  }
+  // Re-render the row (cancels edits / shows saved result via local refresh)
+  bubble.innerHTML = ''
+  const replacement = createRow(m)
+  wrap.replaceWith(replacement)
+  refreshTicksFor(replacement)
+}
+
+/* ---------------------- reply compose bar ---------------------- */
+
+function renderReplyBar() {
+  if (!state.replyTo) return
+  el.replyBarAlias.textContent = 'REPLYING TO ' + state.replyTo.alias.toUpperCase()
+  el.replyBarText.textContent = state.replyTo.text
+  el.replyBar.classList.remove('hidden')
+  el.chatInput.focus()
+}
+
+function hideReplyBar() {
+  state.replyTo = null
+  el.replyBar.classList.add('hidden')
+}
+
+el.btnCancelReply.addEventListener('click', hideReplyBar)
+
+/* ---------------------- sending ---------------------- */
+
 export function sendMessage() {
   const text = el.chatInput.value.trim()
 
-  // Handle Pending File Send
   if (state.selectedFile) {
     sendFileMessage(state.selectedFile)
     return
@@ -121,18 +465,23 @@ export function sendMessage() {
 
   if (!text || !state.passkey) return
 
-  push(ref(db, `${roomPath()}/messages`), {
+  const payload = {
     senderId: state.userId,
     senderAlias: state.alias,
     type: 'text',
     text,
     timestamp: serverTimestamp()
-  }).catch(() => showToast('Failed to send message', '⚠️'))
+  }
+  if (state.replyTo) payload.reply = { alias: state.replyTo.alias, text: state.replyTo.text, senderId: state.userId }
+
+  push(ref(db, `${roomPath()}/messages`), payload).catch(() => showToast('Failed to send message', '⚠️'))
 
   el.chatInput.value = ''
+  if (state.replyTo) hideReplyBar()
 }
 
-// File Attachment Previews + Firebase Storage Upload
+/* ---------------------- file & voice uploads ---------------------- */
+
 el.btnAttachFile.addEventListener('click', () => el.fileInput.click())
 
 el.fileInput.addEventListener('change', (e) => {
@@ -185,7 +534,8 @@ async function sendFileMessage(file) {
   }
 }
 
-// Voice Note Recorder (MediaRecorder API → Firebase Storage)
+/* ---------------------- voice notes ---------------------- */
+
 el.btnRecordVoice.addEventListener('click', toggleVoiceRecord)
 
 async function toggleVoiceRecord() {
@@ -237,7 +587,27 @@ async function sendVoiceNote() {
   }
 }
 
-// Quick Emoji Buttons
+/* ---------------------- incoming notifications ---------------------- */
+
+function notifyIncoming(m) {
+  if (el.decoyScreen && !el.decoyScreen.classList.contains('hidden')) return
+
+  const text = m.type === 'text' ? m.text
+    : m.type === 'voice' ? 'Voice note'
+    : m.type === 'image' ? (m.fileName || 'Image')
+    : m.type === 'file' ? (m.fileName || 'File')
+    : 'New message'
+
+  playBlip(880, 0.06)
+  showToast(`${m.senderAlias}: ${String(text).slice(0, 36)}`, '💬')
+
+  if (document.hidden && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+    try { new Notification('PriChat', { body: `${m.senderAlias}: ${text}` }) } catch (e) { /* ignore */ }
+  }
+}
+
+/* ---------------------- misc wiring ---------------------- */
+
 document.querySelectorAll('.emoji-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     el.chatInput.value += btn.innerText
@@ -245,7 +615,6 @@ document.querySelectorAll('.emoji-btn').forEach(btn => {
   })
 })
 
-// Send triggers
 el.btnSendMsg.addEventListener('click', sendMessage)
 el.chatInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && !e.shiftKey) {
@@ -254,7 +623,6 @@ el.chatInput.addEventListener('keydown', (e) => {
   }
 })
 
-// Typing Sync
 el.chatInput.addEventListener('input', () => {
   if (!state.passkey) return
   set(ref(db, `${roomPath()}/typing/${state.userId}`), true).catch(() => {})

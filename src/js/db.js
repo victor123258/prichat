@@ -6,7 +6,7 @@ import { initializeApp } from 'firebase/app'
 import { getDatabase, ref, onValue, onDisconnect, set, remove, serverTimestamp } from 'firebase/database'
 import { getStorage } from 'firebase/storage'
 import { FIREBASE_CONFIG } from './config.js'
-import { state } from './state.js'
+import { state, emit } from './state.js'
 import { el, formatPasskey } from './ui.js'
 
 const app = initializeApp(FIREBASE_CONFIG)
@@ -75,11 +75,14 @@ export function joinChannel(passkey) {
       el.peerStatusLabel.innerText = `LINKED WITH ${otherPeer.alias.toUpperCase()} • E2E SYNC`
       el.peerStatusLabel.classList.remove('text-stealth-400')
       el.peerStatusLabel.classList.add('text-emerald-400')
+      state.peerOnline = true
     } else {
       el.peerStatusLabel.innerText = 'WAITING FOR SECOND OPERATOR...'
       el.peerStatusLabel.classList.remove('text-emerald-400')
       el.peerStatusLabel.classList.add('text-stealth-400')
+      state.peerOnline = false
     }
+    emit('presence', { online: state.peerOnline })
   })
 }
 
@@ -93,5 +96,6 @@ export function leaveChannel() {
     remove(ref(db, `${roomPath()}/peers/${state.userId}`)).catch(() => {})
     remove(ref(db, `${roomPath()}/typing/${state.userId}`)).catch(() => {})
   }
+  state.peerOnline = false
   state.passkey = ''
 }
