@@ -1,0 +1,245 @@
+/* ==================== PRI CHAT STEALTH STYLES ==================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap');
+
+:root {
+  --bg-main: #060608;
+  --card-bg: #09090b;
+  --border-color: #27272a;
+  --accent: #e4e4e7;
+  --accent-dim: #71717a;
+  --danger: #ef4444;
+  --success: #10b981;
+  --warning: #f59e0b;
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+  margin: 0;
+  padding: 0;
+}
+
+html, body, #app {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+body {
+  background-color: var(--bg-main);
+  color: #f4f4f5;
+  font-family: 'Inter', sans-serif;
+  user-select: none;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Tactical Overlay Scanlines */
+.stealth-overlay {
+  background: linear-gradient(
+    rgba(18, 16, 16, 0) 50%,
+    rgba(0, 0, 0, 0.35) 50%
+  ), linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.01),
+    rgba(0, 0, 0, 0.04),
+    rgba(255, 255, 255, 0.01)
+  );
+  background-size: 100% 4px, 6px 100%;
+  pointer-events: none;
+}
+
+/* Custom Stealth Scrollbar */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track {
+  background: #060608;
+}
+::-webkit-scrollbar-thumb {
+  background: #27272a;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #3f3f46;
+}
+
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+/* Passkey Segmented Input Box Styles */
+.pin-input {
+  caret-color: #e4e4e7;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.pin-input:focus {
+  border-color: #e4e4e7;
+  box-shadow: 0 0 12px rgba(228, 228, 231, 0.2);
+  transform: translateY(-1px);
+  outline: none;
+}
+
+/* Pulse Animations */
+@keyframes stealth-pulse {
+  0%, 100% { opacity: 0.3; transform: scale(0.98); }
+  50% { opacity: 0.9; transform: scale(1.02); }
+}
+.animate-stealth-pulse {
+  animation: stealth-pulse 3s infinite ease-in-out;
+}
+
+@keyframes rec-pulse {
+  0%, 100% { background-color: rgba(239, 68, 68, 0.8); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+  50% { background-color: rgba(239, 68, 68, 0.3); box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
+}
+.recording-indicator {
+  animation: rec-pulse 1.2s infinite ease-in-out;
+}
+
+/* Keypad Tactile Effect */
+.keypad-btn:active {
+  transform: scale(0.94);
+  background-color: #27272a;
+}
+
+/* Decoy Terminal Mode */
+.decoy-mode {
+  font-family: 'JetBrains Mono', monospace;
+  background-color: #0d1117 !important;
+  color: #c9d1d9 !important;
+}
+
+/* Utility Classes */
+.bg-stealth-950 { background-color: #060608; }
+.bg-stealth-900 { background-color: #09090b; }
+.bg-stealth-850 { background-color: #111115; }
+.bg-stealth-800 { background-color: #18181b; }
+.bg-stealth-700 { background-color: #27272a; }
+.bg-stealth-600 { background-color: #3f3f46; }
+
+.border-stealth-700 { border-color: #27272a; }
+.border-stealth-800 { border-color: #3f3f46; }
+
+.text-stealth-100 { color: #f4f4f5; }
+.text-stealth-200 { color: #e4e4e7; }
+.text-stealth-300 { color: #d4d4d8; }
+.text-stealth-400 { color: #a1a1aa; }
+.text-stealth-500 { color: #71717a; }
+
+.font-mono { font-family: 'JetBrains Mono', monospace; }
+
+/* Screen Transitions */
+.screen {
+  display: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+.screen.active {
+  display: flex;
+  opacity: 1;
+}
+
+/* Toast */
+.toast {
+  position: fixed;
+  top: 1.25rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 50;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  background: #111115;
+  border: 1px solid #27272a;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.75rem;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+.toast.show {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Message Bubbles */
+.msg-bubble {
+  max-width: 82%;
+  padding: 0.75rem;
+  border-radius: 1rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+.msg-bubble.mine {
+  background: #e4e4e7;
+  color: #060608;
+  border-bottom-right-radius: 0;
+}
+.msg-bubble.theirs {
+  background: #111115;
+  color: #f4f4f5;
+  border: 1px solid #27272a;
+  border-bottom-left-radius: 0;
+}
+
+/* Voice Note Visualizer */
+.voice-visualizer {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 1rem;
+  background: #18181b;
+  border-radius: 9999px;
+  padding: 0.25rem;
+}
+.voice-bar {
+  width: 2px;
+  background: #71717a;
+  border-radius: 9999px;
+  animation: voice-bar 1.2s infinite ease-in-out;
+}
+.voice-bar:nth-child(1) { height: 0.5rem; animation-delay: 0ms; }
+.voice-bar:nth-child(2) { height: 0.75rem; animation-delay: 100ms; }
+.voice-bar:nth-child(3) { height: 0.25rem; animation-delay: 200ms; }
+.voice-bar:nth-child(4) { height: 1rem; animation-delay: 300ms; }
+.voice-bar:nth-child(5) { height: 0.5rem; animation-delay: 400ms; }
+
+@keyframes voice-bar {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+
+/* Call Stage */
+.call-stage video {
+  background: #060608;
+}
+
+/* Emoji Buttons */
+.emoji-btn {
+  font-size: 1.25rem;
+  line-height: 1;
+  transition: transform 0.15s ease;
+}
+.emoji-btn:hover {
+  transform: scale(1.25);
+}
+
+/* Focus Visible */
+*:focus-visible {
+  outline: 2px solid #e4e4e7;
+  outline-offset: 2px;
+}
+
+/* Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

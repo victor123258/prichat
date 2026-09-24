@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
+<meta name="description" content="PriChat — Encrypted 2-Party Direct Stealth Messaging & Peer Calls via 6-Digit Passkey.">
+<meta name="theme-color" content="#060608">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>PriChat // Stealth Protocol</title>
+
+<link rel="manifest" href="%BASE_URL%manifest.json">
+<link rel="apple-touch-icon" href="%BASE_URL%icons/icon-192.png">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23060608'/><path d='M30 35 H70 V45 H55 V75 H45 V45 H30 Z' fill='%23e4e4e7'/><circle cx='50' cy='25' r='5' fill='%2371717a'/></svg>">
+
+<!-- Fonts: Inter & JetBrains Mono -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+
+<!-- Tailwind CSS CDN -->
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    darkMode: 'class',
+    theme: {
+      extend: {
+        colors: {
+          stealth: {
+            950: '#060608',
+            900: '#09090b',
+            850: '#111115',
+            800: '#18181b',
+            700: '#27272a',
+            600: '#3f3f46',
+            500: '#52525b',
+            400: '#71717a',
+            300: '#a1a1aa',
+            200: '#e4e4e7',
+            100: '#f4f4f5'
+          }
+        },
+        fontFamily: {
+          sans: ['Inter', 'sans-serif'],
+          mono: ['JetBrains Mono', 'monospace']
+        }
+      }
+    }
+  }
+</script>
+
+<link rel="stylesheet" href="/src/css/main.css">
+</head>
+<body class="h-screen w-screen flex flex-col justify-between overflow-hidden antialiased bg-stealth-950 text-stealth-100">
+
+<div id="app" class="relative flex flex-col w-full h-full max-w-md md:max-w-4xl mx-auto border-x border-stealth-800 bg-stealth-900 shadow-2xl overflow-hidden">
+
+  <!-- Overlay Scanlines for stealth CRT aesthetic -->
+  <div class="stealth-overlay absolute inset-0 z-30 opacity-30"></div>
+
+  <!-- Toast Notification System -->
+  <div id="toast" class="fixed top-5 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg bg-stealth-850 border border-stealth-700 text-stealth-100 font-mono text-xs shadow-2xl flex items-center gap-2 opacity-0 pointer-events-none transition-all duration-300">
+    <span id="toast-icon">⚡</span>
+    <span id="toast-msg">Notification</span>
+  </div>
+
+  <!-- ==================== SCREEN 1: PASSKEY ENTRANCE / LANDING ==================== -->
+  <section id="screen-login" class="flex-1 flex flex-col justify-between p-6 overflow-y-auto z-10">
+
+    <!-- Header Logo & Branding -->
+    <div class="flex flex-col items-center text-center mt-4">
+      <div class="w-14 h-14 rounded-2xl bg-stealth-850 border border-stealth-700 flex items-center justify-center mb-3 shadow-inner">
+        <svg class="w-7 h-7 text-stealth-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+        </svg>
+      </div>
+      <h1 class="font-mono text-2xl font-bold tracking-widest text-stealth-100 uppercase">PRICHAT</h1>
+      <p class="text-[11px] font-mono text-stealth-400 mt-1 uppercase tracking-widest">Monochrome Stealth Direct Channel</p>
+    </div>
+
+    <!-- 6-Digit Passkey Interface -->
+    <div class="my-auto py-6 bg-stealth-850 border border-stealth-800 rounded-2xl p-6 shadow-2xl">
+      <div class="text-center mb-6">
+        <span class="inline-block px-3 py-1 rounded-full bg-stealth-800 border border-stealth-700 text-[10px] font-mono text-stealth-300 uppercase tracking-widest">
+          Step 1 • Enter 6-Digit Passkey
+        </span>
+      </div>
+
+      <!-- Segmented 6-Digit Passkey Inputs -->
+      <div class="flex items-center justify-center gap-2 mb-6" id="pin-container">
+        <input type="text" maxlength="1" inputmode="numeric" autocomplete="one-time-code" class="pin-input w-10 h-12 md:w-12 md:h-14 text-center text-xl font-mono font-bold bg-stealth-900 border border-stealth-700 rounded-xl focus:outline-none text-stealth-100" data-idx="0">
+        <input type="text" maxlength="1" inputmode="numeric" class="pin-input w-10 h-12 md:w-12 md:h-14 text-center text-xl font-mono font-bold bg-stealth-900 border border-stealth-700 rounded-xl focus:outline-none text-stealth-100" data-idx="1">
+        <input type="text" maxlength="1" inputmode="numeric" class="pin-input w-10 h-12 md:w-12 md:h-14 text-center text-xl font-mono font-bold bg-stealth-900 border border-stealth-700 rounded-xl focus:outline-none text-stealth-100" data-idx="2">
+        <span class="text-stealth-600 font-mono text-xl">-</span>
+        <input type="text" maxlength="1" inputmode="numeric" class="pin-input w-10 h-12 md:w-12 md:h-14 text-center text-xl font-mono font-bold bg-stealth-900 border border-stealth-700 rounded-xl focus:outline-none text-stealth-100" data-idx="3">
+        <input type="text" maxlength="1" inputmode="numeric" class="pin-input w-10 h-12 md:w-12 md:h-14 text-center text-xl font-mono font-bold bg-stealth-900 border border-stealth-700 rounded-xl focus:outline-none text-stealth-100" data-idx="4">
+        <input type="text" maxlength="1" inputmode="numeric" class="pin-input w-10 h-12 md:w-12 md:h-14 text-center text-xl font-mono font-bold bg-stealth-900 border border-stealth-700 rounded-xl focus:outline-none text-stealth-100" data-idx="5">
+      </div>
+
+      <!-- Handle / Alias Input -->
+      <div class="mb-5">
+        <label class="block text-[10px] font-mono text-stealth-400 uppercase tracking-widest mb-2 text-left">OPERATOR ALIAS / HANDLER</label>
+        <input type="text" id="user-alias" placeholder="e.g. Agent-07" maxlength="24" class="w-full bg-stealth-900 border border-stealth-700 rounded-xl px-4 py-2.5 text-xs font-mono text-stealth-100 focus:outline-none focus:border-stealth-300">
+      </div>
+
+      <!-- Actions -->
+      <div class="flex flex-col gap-3">
+        <button id="btn-connect" disabled class="w-full py-3.5 px-4 rounded-xl font-mono text-xs font-semibold uppercase tracking-wider bg-stealth-200 text-stealth-950 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-white transition-all shadow-lg">
+          ESTABLISH DIRECT LINK
+        </button>
+        <button id="btn-random-key" class="w-full py-2.5 px-4 rounded-xl font-mono text-[11px] uppercase tracking-wider border border-stealth-700 text-stealth-300 hover:border-stealth-500 hover:text-stealth-100 transition-all flex items-center justify-center gap-2">
+          <span>🎲</span> Generate Random Passkey
+        </button>
+      </div>
+    </div>
+
+    <!-- Active Passkeys / Channels Overview -->
+    <div class="bg-stealth-850 border border-stealth-800 rounded-2xl p-4 text-left">
+      <div class="flex items-center justify-between mb-3">
+        <span class="text-[10px] font-mono uppercase tracking-widest text-stealth-400">ACTIVE CHANNELS IN NETWORK</span>
+        <span id="channel-count-badge" class="text-[10px] font-mono px-2 py-0.5 rounded bg-stealth-800 border border-stealth-700 text-stealth-300">0 ACTIVE</span>
+      </div>
+      <div id="active-rooms-list" class="space-y-2 max-h-36 overflow-y-auto pr-1">
+        <div class="text-xs font-mono text-stealth-500 text-center py-4">No active passkey channels. Enter key to launch one.</div>
+      </div>
+    </div>
+
+    <div class="text-center my-2">
+      <p class="text-[10px] font-mono text-stealth-500 tracking-wide">P2P ENCRYPTED SIGNALING • ZERO DATA RETENTION</p>
+    </div>
+  </section>
+
+  <!-- ==================== SCREEN 2: STEALTH CHAT ROOM ==================== -->
+  <section id="screen-chat" class="hidden flex-1 flex flex-col h-full min-h-0 z-10">
+
+    <!-- Top Bar Navigation HUD -->
+    <header class="flex items-center justify-between px-4 py-3 bg-stealth-850 border-b border-stealth-800 flex-shrink-0">
+      <div class="flex items-center gap-3">
+        <button id="btn-leave" class="p-2 rounded-xl bg-stealth-900 border border-stealth-700 text-stealth-300 hover:text-stealth-100 transition-colors" title="Disconnect & Exit Channel">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+        </button>
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            <span id="room-passkey-display" class="font-mono text-xs font-bold tracking-widest text-stealth-100">KEY: 000-000</span>
+          </div>
+          <span id="peer-status-label" class="text-[10px] font-mono text-stealth-400 block mt-0.5">WAITING FOR SECOND OPERATOR...</span>
+        </div>
+      </div>
+
+      <!-- Action Icons: Voice, Video, Panic -->
+      <div class="flex items-center gap-2">
+        <button id="btn-start-audio-call" class="p-2.5 rounded-xl bg-stealth-800 border border-stealth-700 text-stealth-200 hover:bg-stealth-700 transition-all" title="Start Encrypted Voice Call">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
+        </button>
+        <button id="btn-start-video-call" class="p-2.5 rounded-xl bg-stealth-800 border border-stealth-700 text-stealth-200 hover:bg-stealth-700 transition-all" title="Start Encrypted Video Call">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+        </button>
+        <button id="btn-panic-mode" class="p-2.5 rounded-xl bg-red-950/40 border border-red-900/60 text-red-400 hover:bg-red-900/60 transition-all" title="Panic Mode / Decoy Screen (ESC)">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m0 0v2m0-2h2m-2 0H10m11 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Message Stream Area -->
+    <div id="messages-container" class="flex-1 overflow-y-auto p-4 space-y-3 bg-stealth-950/80">
+      <div id="chat-welcome" class="my-6 text-center">
+        <div class="inline-block p-4 rounded-2xl bg-stealth-900 border border-stealth-800 max-w-xs text-center">
+          <div class="text-xs font-mono text-stealth-200 font-semibold mb-1">STEALTH CHANNEL ESTABLISHED</div>
+          <p class="text-[11px] font-mono text-stealth-400 leading-relaxed">Share 6-digit key with peer. All messages, voice notes, and calls are direct end-to-end synchronized.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Typing Indicator HUD -->
+    <div id="typing-indicator" class="px-4 py-1 text-[10px] font-mono text-stealth-400 h-5 opacity-0 transition-opacity flex items-center gap-1.5">
+      <span class="w-1.5 h-1.5 rounded-full bg-stealth-400 animate-bounce"></span>
+      <span id="typing-text">Peer is typing...</span>
+    </div>
+
+    <!-- Input Toolbar & Controls -->
+    <div class="p-3 bg-stealth-850 border-t border-stealth-800 flex-shrink-0">
+
+      <!-- Emoji Quick Select Ribbon -->
+      <div class="flex items-center gap-2 mb-2 overflow-x-auto pb-1 text-sm border-b border-stealth-800/60 scrollbar-none">
+        <button class="emoji-btn hover:scale-125 transition-transform">🔒</button>
+        <button class="emoji-btn hover:scale-125 transition-transform">⚡</button>
+        <button class="emoji-btn hover:scale-125 transition-transform">🎯</button>
+        <button class="emoji-btn hover:scale-125 transition-transform">👍</button>
+        <button class="emoji-btn hover:scale-125 transition-transform">🤝</button>
+        <button class="emoji-btn hover:scale-125 transition-transform">🔥</button>
+        <button class="emoji-btn hover:scale-125 transition-transform">👀</button>
+        <button class="emoji-btn hover:scale-125 transition-transform">📁</button>
+      </div>
+
+      <!-- Pending File Attachment Bar -->
+      <div id="file-preview-bar" class="hidden mb-2 p-2 rounded-xl bg-stealth-900 border border-stealth-700 flex items-center justify-between">
+        <div class="flex items-center gap-2 min-w-0">
+          <span class="text-lg">📎</span>
+          <div class="min-w-0 text-left">
+            <div id="preview-filename" class="text-xs font-mono text-stealth-200 truncate">file.txt</div>
+            <div id="preview-filesize" class="text-[10px] font-mono text-stealth-400">0 KB</div>
+          </div>
+        </div>
+        <button id="btn-cancel-file" class="p-1 rounded bg-stealth-800 text-stealth-400 hover:text-red-400">✕</button>
+      </div>
+
+      <!-- Text Input & Media Triggers -->
+      <div class="flex items-end gap-2">
+        <input type="file" id="file-input" class="hidden" accept="image/*,.pdf,.doc,.docx,.txt,.zip,.mp3,.mp4,.webm">
+
+        <button id="btn-attach-file" class="p-3 rounded-xl bg-stealth-900 border border-stealth-700 text-stealth-300 hover:text-stealth-100 transition-colors" title="Attach File or Image">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/></svg>
+        </button>
+
+        <textarea id="chat-input" rows="1" placeholder="Type tactical message..." class="flex-1 bg-stealth-900 border border-stealth-700 rounded-xl px-3.5 py-2.5 text-xs font-mono text-stealth-100 placeholder-stealth-500 focus:outline-none focus:border-stealth-400 resize-none max-h-24"></textarea>
+
+        <button id="btn-record-voice" class="p-3 rounded-xl bg-stealth-900 border border-stealth-700 text-stealth-300 hover:text-stealth-100 transition-all" title="Tap to Record Voice Note">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/></svg>
+        </button>
+
+        <button id="btn-send-msg" class="p-3 rounded-xl bg-stealth-200 text-stealth-950 font-bold hover:bg-white transition-all shadow-md">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
+        </button>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- ==================== CALL & DECOY OVERLAYS ==================== -->
+
+<!-- 1. Incoming Call Dialog -->
+<div id="incoming-call-modal" class="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4 hidden">
+  <div class="bg-stealth-900 border border-stealth-700 rounded-2xl p-6 max-w-xs w-full text-center shadow-2xl space-y-4">
+    <div class="w-16 h-16 rounded-full bg-stealth-800 border border-stealth-600 mx-auto flex items-center justify-center text-2xl animate-pulse">
+      📞
+    </div>
+    <div>
+      <h3 id="incoming-caller-id" class="font-mono text-sm font-bold text-stealth-100 uppercase">INCOMING CALL</h3>
+      <p id="incoming-call-type" class="text-xs font-mono text-stealth-400 mt-0.5">Encrypted Voice Channel Request</p>
+    </div>
+    <div class="flex items-center justify-center gap-4 pt-2">
+      <button id="btn-decline-call" class="px-5 py-2.5 rounded-xl bg-red-950 border border-red-800 text-red-200 font-mono text-xs hover:bg-red-900 transition-all">DECLINE</button>
+      <button id="btn-accept-call" class="px-5 py-2.5 rounded-xl bg-emerald-900 border border-emerald-700 text-emerald-100 font-mono text-xs font-bold hover:bg-emerald-800 transition-all">ACCEPT</button>
+    </div>
+  </div>
+</div>
+
+<!-- 2. Active WebRTC Call Stage -->
+<div id="video-call-stage" class="fixed inset-0 bg-black z-50 flex flex-col justify-between hidden">
+  <!-- Top Telemetry Banner -->
+  <div class="p-4 bg-gradient-to-b from-black/80 to-transparent flex items-center justify-between z-10">
+    <div class="flex items-center gap-2">
+      <span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+      <span id="call-timer" class="font-mono text-xs text-stealth-200">00:00 • E2E STREAM ACTIVE</span>
+    </div>
+    <span class="font-mono text-[10px] text-stealth-400 border border-stealth-700 px-2 py-0.5 rounded">STUN / P2P DIRECT</span>
+  </div>
+
+  <!-- Video Feeds -->
+  <div class="relative flex-1 w-full h-full bg-stealth-950 flex items-center justify-center overflow-hidden">
+    <video id="remoteVideo" autoplay playsinline class="w-full h-full object-cover"></video>
+    <video id="localVideo" autoplay playsinline muted class="absolute bottom-6 right-6 w-28 h-40 bg-stealth-900 rounded-xl border border-stealth-700 object-cover shadow-2xl z-20"></video>
+  </div>
+
+  <!-- Call Controls Footer -->
+  <div class="p-6 bg-gradient-to-t from-black/90 to-transparent flex items-center justify-center gap-4 z-10">
+    <button id="btn-toggle-mic" class="p-4 rounded-full bg-stealth-800 border border-stealth-700 text-stealth-100 hover:bg-stealth-700" title="Toggle Microphone">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/></svg>
+    </button>
+    <button id="btn-end-call" class="p-4 rounded-full bg-red-600 text-white hover:bg-red-700 shadow-xl" title="End Call">
+      <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 8l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2M5 3a2 2 0 00-2 2v1c0 8.284 6.716 15 15 15h1a2 2 0 002-2v-3.28a1 1 0 00-.684-.948l-4.493-1.498a1 1 0 00-1.21.502l-1.13 2.257a11.042 11.042 0 01-5.516-5.516l2.257-1.13a1 1 0 00.502-1.21L9.228 3.684A1 1 0 008.279 3H5z"/></svg>
+    </button>
+    <button id="btn-toggle-cam" class="p-4 rounded-full bg-stealth-800 border border-stealth-700 text-stealth-100 hover:bg-stealth-700" title="Toggle Camera">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+    </button>
+  </div>
+</div>
+
+<!-- 3. Decoy Terminal View (Panic Mode Triggered by ESC or Button) -->
+<div id="decoy-screen" class="fixed inset-0 z-50 hidden decoy-mode p-6 overflow-y-auto">
+  <div class="max-w-2xl mx-auto space-y-2 text-xs">
+    <div class="text-emerald-500 font-bold">systemd[1]: Started System Kernel Module Telemetry Service.</div>
+    <div>[  0.000000] Linux version 6.5.0-generic (buildd@lts-machine) #24-Ubuntu SMP PREEMPT_DYNAMIC</div>
+    <div>[  0.024102] CPU0: Thermal monitoring enabled (TM1)</div>
+    <div>[  0.104231] Memory: 16384MB RAM available</div>
+    <div>[  0.289110] PCI: Probing PCI hardware...</div>
+    <div class="text-yellow-500">[  0.412002] daemon: listening on 127.0.0.1:8080 (passive mode)</div>
+    <div class="pt-4 text-gray-400">root@stealth-node-01:~# <span class="animate-pulse">_</span></div>
+  </div>
+</div>
+
+<script type="module" src="/src/js/app.js"></script>
+</body>
+</html>

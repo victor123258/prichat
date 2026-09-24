@@ -1,0 +1,12 @@
+{
+  "rules": {
+    "prichat_rooms": {
+      ".read": true,
+      ".write": true,
+      "$room": {
+        ".read": true,
+        ".write": true
+      }
+    }
+  }
+}
