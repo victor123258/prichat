@@ -60,7 +60,7 @@ service firebase.storage {
 
 ## Deploy to GitHub Pages
 
-The repo (or branch) name must match `base` in `vite.config.js` (`/prichat/`). Then either:
+The repo (or branch) name must match `base` in `vite.config.js` (`/PriChat/`). Then either:
 
 ### Option A — GitHub Actions (recommended, zero setup)
 
@@ -74,7 +74,7 @@ The repo (or branch) name must match `base` in `vite.config.js` (`/prichat/`). T
 npm run deploy     # runs: npm run build && gh-pages -d dist
 ```
 
-The built site will be live at `https://<username>.github.io/prichat/`.
+The built site will be live at `https://<username>.github.io/PriChat/`.
 
 ## Project Structure
 
